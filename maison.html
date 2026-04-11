@@ -8191,6 +8191,11 @@ async function _loadProfile(supaUser) {
 
   // Listen for auth state changes
   _supabase.auth.onAuthStateChange(async function(event, session) {
+    // ── Password recovery — show reset form immediately ──
+    if(event === 'PASSWORD_RECOVERY') {
+      showPasswordResetModal();
+      return;
+    }
     if((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session && session.user) {
       // Only update if different user or not yet logged in
       if(!currentUser || currentUser.id !== session.user.id) {
@@ -8294,7 +8299,68 @@ async function socialLogin(provider) {
   }
 }
 
-// ── Password Reset ──────────────────────────────────────────
+// ── Password Reset Modal ────────────────────────────────────
+function showPasswordResetModal() {
+  // Remove any existing reset modal
+  var existing = document.getElementById('pwResetOverlay');
+  if(existing) existing.remove();
+
+  var el = document.createElement('div');
+  el.id = 'pwResetOverlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(13,13,13,.8);z-index:9500;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  el.innerHTML =
+    '<div style="background:var(--paper);width:min(440px,96vw);padding:2.5rem;border-top:3px solid var(--gold);position:relative;">' +
+      '<div style="font-family:var(--mono);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Account Security</div>' +
+      '<h2 style="font-family:var(--serif);font-size:1.8rem;font-weight:300;font-style:italic;margin-bottom:1.75rem;">Set New <em style="color:var(--accent);">Password</em></h2>' +
+      '<div style="margin-bottom:1rem;">' +
+        '<label style="display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">New Password</label>' +
+        '<input type="password" id="pwNew" placeholder="Min. 6 characters" autocomplete="new-password" style="width:100%;padding:.75rem 1rem;border:1px solid var(--border);background:#fff;font-family:var(--mono);font-size:.85rem;outline:none;">' +
+      '</div>' +
+      '<div style="margin-bottom:1.5rem;">' +
+        '<label style="display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Confirm Password</label>' +
+        '<input type="password" id="pwConfirm" placeholder="Repeat password" autocomplete="new-password" style="width:100%;padding:.75rem 1rem;border:1px solid var(--border);background:#fff;font-family:var(--mono);font-size:.85rem;outline:none;">' +
+      '</div>' +
+      '<div id="pwErr" style="font-family:var(--mono);font-size:.65rem;color:#c0392b;margin-bottom:.75rem;display:none;"></div>' +
+      '<button onclick="doPasswordUpdate()" style="width:100%;padding:.85rem;background:var(--ink);color:var(--paper);border:none;font-family:var(--mono);font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;">Update Password →</button>' +
+    '</div>';
+  document.body.appendChild(el);
+}
+
+async function doPasswordUpdate() {
+  var newPass     = document.getElementById('pwNew').value;
+  var confirmPass = document.getElementById('pwConfirm').value;
+  var errEl       = document.getElementById('pwErr');
+  errEl.style.display = 'none';
+
+  if(!newPass || newPass.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    errEl.style.display = 'block'; return;
+  }
+  if(newPass !== confirmPass) {
+    errEl.textContent = 'Passwords do not match.';
+    errEl.style.display = 'block'; return;
+  }
+
+  var btn = document.querySelector('#pwResetOverlay button');
+  if(btn) { btn.textContent = 'Updating…'; btn.disabled = true; }
+
+  var { error } = await _supabase.auth.updateUser({ password: newPass });
+
+  if(error) {
+    errEl.textContent = '❌ ' + error.message;
+    errEl.style.display = 'block';
+    if(btn) { btn.textContent = 'Update Password →'; btn.disabled = false; }
+    return;
+  }
+
+  // Success
+  var overlay = document.getElementById('pwResetOverlay');
+  if(overlay) overlay.remove();
+  showToast('✅ Password updated successfully! You are now signed in.');
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+// ── Password Reset Request ──────────────────────────────────
 async function doPasswordReset() {
   if(!_sbReady()) return;
   var email = document.getElementById('siEmail').value.trim();
