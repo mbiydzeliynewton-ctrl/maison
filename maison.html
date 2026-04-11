@@ -8175,11 +8175,43 @@ async function _loadProfile(supaUser) {
 (async function initSession() {
   if(!_supabase) return;
 
-  // Handle OAuth redirect — Supabase exchanges the token automatically
+  // ── Detect password recovery BEFORE getSession() exchanges the token ──
+  // Supabase puts #access_token=...&type=recovery in the URL hash
+  var _hash = window.location.hash || '';
+  var _isRecovery = _hash.indexOf('type=recovery') > -1;
+
+  if(_isRecovery) {
+    // Let Supabase exchange the token — it fires PASSWORD_RECOVERY via onAuthStateChange
+    // Don't call onLogin — just wait for the event
+    _supabase.auth.onAuthStateChange(async function(event, session) {
+      if(event === 'PASSWORD_RECOVERY') {
+        // Clear the hash so it doesn't linger
+        window.history.replaceState({}, document.title, window.location.pathname);
+        showPasswordResetModal();
+        return;
+      }
+      if(event === 'SIGNED_IN' && session && session.user && !_isRecovery) {
+        var supaUser = session.user;
+        var profile = await _loadProfile(supaUser);
+        if(!profile) {
+          await new Promise(function(r){ setTimeout(r, 1500); });
+          profile = await _loadProfile(supaUser);
+        }
+        currentUser = _buildUser(supaUser, profile);
+        onLogin(false);
+      }
+      if(event === 'SIGNED_OUT') {
+        currentUser = null;
+        onLogout();
+      }
+    });
+    return; // Don't proceed to normal session restore
+  }
+
+  // Normal session restore (not a recovery link)
   var res = await _supabase.auth.getSession();
   if(res.data && res.data.session && res.data.session.user) {
     var supaUser = res.data.session.user;
-    // Try loading profile — retry once after 1.5s in case DB trigger is slow
     var profile = await _loadProfile(supaUser);
     if(!profile) {
       await new Promise(function(r){ setTimeout(r, 1500); });
@@ -8193,6 +8225,7 @@ async function _loadProfile(supaUser) {
   _supabase.auth.onAuthStateChange(async function(event, session) {
     // ── Password recovery — show reset form immediately ──
     if(event === 'PASSWORD_RECOVERY') {
+      window.history.replaceState({}, document.title, window.location.pathname);
       showPasswordResetModal();
       return;
     }
@@ -8208,7 +8241,6 @@ async function _loadProfile(supaUser) {
         currentUser = _buildUser(supaUser, profile);
         var wasSilent = (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED');
         onLogin(wasSilent);
-        // Clean up OAuth hash from URL
         if(window.location.hash && window.location.hash.indexOf('access_token') > -1) {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
