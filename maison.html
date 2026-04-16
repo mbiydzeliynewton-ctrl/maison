@@ -2277,7 +2277,7 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
       <div class="mfield"><label>Email</label><input type="email" id="siEmail" placeholder="you@example.com" autocomplete="email"></div>
       <div class="mfield"><label>Password</label><input type="password" id="siPass" placeholder="Your password" autocomplete="current-password"></div>
       <button class="modal-btn" data-action="doSignIn">Sign In &#x2192;</button>
-      <p class="is_font_family_17" style="cursor:pointer;" onclick="doPasswordReset()">Forgot password?</p>
+      <p class="is_font_family_17" style="cursor:pointer;" onclick="showForgotPasswordModal()">Forgot password?</p>
     </div>
     <div class="modal-form-section" id="formSignup">
       <div class="modal-social-row">
@@ -8392,16 +8392,194 @@ async function doPasswordUpdate() {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-// ── Password Reset Request ──────────────────────────────────
-async function doPasswordReset() {
-  if(!_sbReady()) return;
-  var email = document.getElementById('siEmail').value.trim();
-  if(!email) { showToast('Enter your email address first'); return; }
-  var res = await _supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin + window.location.pathname + '?reset=1'
+// ── Password Reset — 3-step OTP flow ───────────────────────
+// Step 1: Enter email → send OTP
+// Step 2: Enter 6-digit OTP code
+// Step 3: Enter + confirm new password
+
+var _resetEmail = '';
+
+function showForgotPasswordModal() {
+  closeModal('authModal');
+  _buildResetModal('step1');
+}
+
+function _buildResetModal(step) {
+  var existing = document.getElementById('pwResetOverlay');
+  if(existing) existing.remove();
+
+  var content = '';
+
+  if(step === 'step1') {
+    content =
+      '<div style="font-family:var(--mono);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Step 1 of 3</div>' +
+      '<h2 style="font-family:var(--serif);font-size:1.8rem;font-weight:300;font-style:italic;margin-bottom:.5rem;">Reset <em style="color:var(--accent);">Password</em></h2>' +
+      '<p style="font-family:var(--mono);font-size:.65rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.6;">Enter your email address and we\'ll send a 6-digit verification code.</p>' +
+      '<div style="margin-bottom:1.25rem;">' +
+        '<label style="display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Email Address</label>' +
+        '<input type="email" id="resetEmailInput" placeholder="you@example.com" autocomplete="email" style="width:100%;padding:.75rem 1rem;border:1.5px solid var(--border);background:#fff;font-family:var(--mono);font-size:.85rem;outline:none;transition:border-color .15s;" onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border)\'" onkeydown="if(event.key===\'Enter\')sendResetOTP()">' +
+      '</div>' +
+      '<div id="resetErr" style="font-family:var(--mono);font-size:.63rem;color:#c0392b;margin-bottom:.75rem;display:none;"></div>' +
+      '<button onclick="sendResetOTP()" id="resetBtn1" style="width:100%;padding:.85rem;background:var(--ink);color:var(--paper);border:none;font-family:var(--mono);font-size:.63rem;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;transition:opacity .15s;">Send Code →</button>' +
+      '<p style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-align:center;margin-top:1rem;cursor:pointer;" onclick="cancelReset()">← Back to Sign In</p>';
+
+  } else if(step === 'step2') {
+    content =
+      '<div style="font-family:var(--mono);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Step 2 of 3</div>' +
+      '<h2 style="font-family:var(--serif);font-size:1.8rem;font-weight:300;font-style:italic;margin-bottom:.5rem;">Enter <em style="color:var(--accent);">Code</em></h2>' +
+      '<p style="font-family:var(--mono);font-size:.65rem;color:var(--muted);margin-bottom:.25rem;line-height:1.6;">A 6-digit code was sent to:</p>' +
+      '<p style="font-family:var(--mono);font-size:.75rem;color:var(--ink);font-weight:500;margin-bottom:1.5rem;">' + _resetEmail + '</p>' +
+      '<div style="margin-bottom:1.25rem;">' +
+        '<label style="display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">6-Digit Code</label>' +
+        '<input type="text" id="resetOTPInput" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);background:#fff;font-family:var(--mono);font-size:1.6rem;letter-spacing:.4em;text-align:center;outline:none;transition:border-color .15s;" onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border)\'" oninput="this.value=this.value.replace(/[^0-9]/g,\'\');if(this.value.length===6)verifyResetOTP()" onkeydown="if(event.key===\'Enter\')verifyResetOTP()">' +
+      '</div>' +
+      '<div id="resetErr" style="font-family:var(--mono);font-size:.63rem;color:#c0392b;margin-bottom:.75rem;display:none;"></div>' +
+      '<button onclick="verifyResetOTP()" id="resetBtn2" style="width:100%;padding:.85rem;background:var(--ink);color:var(--paper);border:none;font-family:var(--mono);font-size:.63rem;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;transition:opacity .15s;">Verify Code →</button>' +
+      '<p style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-align:center;margin-top:1rem;cursor:pointer;" onclick="_buildResetModal(\'step1\')">← Resend code</p>';
+
+  } else if(step === 'step3') {
+    content =
+      '<div style="font-family:var(--mono);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Step 3 of 3</div>' +
+      '<h2 style="font-family:var(--serif);font-size:1.8rem;font-weight:300;font-style:italic;margin-bottom:.5rem;">New <em style="color:var(--accent);">Password</em></h2>' +
+      '<p style="font-family:var(--mono);font-size:.65rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.6;">Choose a strong password for your account.</p>' +
+      '<div style="margin-bottom:1rem;">' +
+        '<label style="display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">New Password</label>' +
+        '<input type="password" id="pwNew" placeholder="Min. 6 characters" autocomplete="new-password" style="width:100%;padding:.75rem 1rem;border:1.5px solid var(--border);background:#fff;font-family:var(--mono);font-size:.85rem;outline:none;transition:border-color .15s;" onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border)\'">' +
+      '</div>' +
+      '<div style="margin-bottom:1.25rem;">' +
+        '<label style="display:block;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Confirm Password</label>' +
+        '<input type="password" id="pwConfirm" placeholder="Repeat password" autocomplete="new-password" style="width:100%;padding:.75rem 1rem;border:1.5px solid var(--border);background:#fff;font-family:var(--mono);font-size:.85rem;outline:none;transition:border-color .15s;" onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border)\'" onkeydown="if(event.key===\'Enter\')doPasswordUpdate()">' +
+      '</div>' +
+      '<div id="resetErr" style="font-family:var(--mono);font-size:.63rem;color:#c0392b;margin-bottom:.75rem;display:none;"></div>' +
+      '<button onclick="doPasswordUpdate()" id="resetBtn3" style="width:100%;padding:.85rem;background:var(--ink);color:var(--paper);border:none;font-family:var(--mono);font-size:.63rem;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;transition:opacity .15s;">Update Password →</button>';
+  }
+
+  var el = document.createElement('div');
+  el.id = 'pwResetOverlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(13,13,13,.75);z-index:9500;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  el.innerHTML =
+    '<div style="background:var(--paper);width:min(420px,96vw);padding:2.25rem 2.5rem;border-top:3px solid var(--gold);position:relative;">' +
+    content +
+    '</div>';
+  document.body.appendChild(el);
+
+  // Auto focus first input
+  setTimeout(function() {
+    var inp = el.querySelector('input');
+    if(inp) inp.focus();
+  }, 100);
+}
+
+async function sendResetOTP() {
+  var emailInput = document.getElementById('resetEmailInput');
+  var errEl = document.getElementById('resetErr');
+  var btn = document.getElementById('resetBtn1');
+  if(!emailInput) return;
+  var email = emailInput.value.trim();
+  errEl.style.display = 'none';
+
+  if(!email || !email.includes('@')) {
+    errEl.textContent = 'Please enter a valid email address.';
+    errEl.style.display = 'block'; return;
+  }
+
+  btn.textContent = 'Sending…'; btn.disabled = true;
+
+  // Use Supabase OTP — sends a 6-digit code via email
+  var { error } = await _supabase.auth.signInWithOtp({
+    email: email,
+    options: { shouldCreateUser: false }
   });
-  if(res.error) showToast('❌ ' + res.error.message);
-  else showToast('✅ Password reset email sent to ' + email);
+
+  if(error) {
+    errEl.textContent = '❌ ' + (error.message || 'Could not send code. Check the email address.');
+    errEl.style.display = 'block';
+    btn.textContent = 'Send Code →'; btn.disabled = false;
+    return;
+  }
+
+  _resetEmail = email;
+  _buildResetModal('step2');
+}
+
+async function verifyResetOTP() {
+  var otpInput = document.getElementById('resetOTPInput');
+  var errEl = document.getElementById('resetErr');
+  var btn = document.getElementById('resetBtn2');
+  if(!otpInput) return;
+  var token = otpInput.value.trim();
+  errEl.style.display = 'none';
+
+  if(token.length !== 6) {
+    errEl.textContent = 'Please enter the full 6-digit code.';
+    errEl.style.display = 'block'; return;
+  }
+
+  btn.textContent = 'Verifying…'; btn.disabled = true;
+
+  // Verify the OTP token
+  var { data, error } = await _supabase.auth.verifyOtp({
+    email: _resetEmail,
+    token: token,
+    type: 'email'
+  });
+
+  if(error || !data.session) {
+    errEl.textContent = '❌ ' + (error ? error.message : 'Invalid or expired code. Try again.');
+    errEl.style.display = 'block';
+    btn.textContent = 'Verify Code →'; btn.disabled = false;
+    return;
+  }
+
+  // Code verified — move to step 3
+  _buildResetModal('step3');
+}
+
+async function doPasswordUpdate() {
+  var newPass     = document.getElementById('pwNew').value;
+  var confirmPass = document.getElementById('pwConfirm').value;
+  var errEl       = document.getElementById('resetErr');
+  var btn         = document.getElementById('resetBtn3');
+  errEl.style.display = 'none';
+
+  if(!newPass || newPass.length < 6) {
+    errEl.textContent = 'Password must be at least 6 characters.';
+    errEl.style.display = 'block'; return;
+  }
+  if(newPass !== confirmPass) {
+    errEl.textContent = 'Passwords do not match. Please try again.';
+    errEl.style.display = 'block'; return;
+  }
+
+  btn.textContent = 'Updating…'; btn.disabled = true;
+
+  var { error } = await _supabase.auth.updateUser({ password: newPass });
+
+  if(error) {
+    errEl.textContent = '❌ ' + error.message;
+    errEl.style.display = 'block';
+    btn.textContent = 'Update Password →'; btn.disabled = false;
+    return;
+  }
+
+  // Sign out and show success
+  await _supabase.auth.signOut();
+  var overlay = document.getElementById('pwResetOverlay');
+  if(overlay) overlay.remove();
+  currentUser = null;
+  onLogout();
+  showToast('✅ Password updated! Please sign in with your new password.');
+  setTimeout(function(){ openAuth('signin', 'Sign in with your new password'); }, 500);
+}
+
+function cancelReset() {
+  var overlay = document.getElementById('pwResetOverlay');
+  if(overlay) overlay.remove();
+  openAuth('signin');
+}
+
+async function doPasswordReset() {
+  showForgotPasswordModal();
 }
 
 // ── Google Picker UI (now just triggers real OAuth) ─────────
@@ -9568,7 +9746,7 @@ document.addEventListener('click', function(e) {
         break;
       case 'openFullStory':       openFullStory(); break;
       case 'historyBack': goBack(); break;
-      case 'forgotPassword':      showToast('Password reset link sent!'); break;
+      case 'forgotPassword':      showForgotPasswordModal(); break;
       case 'closeListingOpenAgent': closeModal('houseListModal'); openAgent(); break;
       case 'submitContactForm':
         var cf = document.getElementById('cfForm');
