@@ -8485,21 +8485,33 @@ async function sendResetOTP() {
 
   btn.textContent = 'Sending…'; btn.disabled = true;
 
-  // Use Supabase OTP — sends a 6-digit code via email
-  var { error } = await _supabase.auth.signInWithOtp({
-    email: email,
-    options: { shouldCreateUser: false }
-  });
-
-  if(error) {
-    errEl.textContent = '❌ ' + (error.message || 'Could not send code. Check the email address.');
+  try {
+    var res = await fetch(
+      'https://xutsuhdyxwskwjxsryyi.supabase.co/functions/v1/send-reset-code',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON
+        },
+        body: JSON.stringify({ action: 'send_code', email: email })
+      }
+    );
+    var data = await res.json();
+    if(data.error) {
+      errEl.textContent = '❌ ' + data.error;
+      errEl.style.display = 'block';
+      btn.textContent = 'Send Code →'; btn.disabled = false;
+      return;
+    }
+    _resetEmail = email;
+    _buildResetModal('step2');
+  } catch(e) {
+    errEl.textContent = '❌ Network error. Please try again.';
     errEl.style.display = 'block';
     btn.textContent = 'Send Code →'; btn.disabled = false;
-    return;
   }
-
-  _resetEmail = email;
-  _buildResetModal('step2');
 }
 
 async function verifyResetOTP() {
@@ -8517,22 +8529,37 @@ async function verifyResetOTP() {
 
   btn.textContent = 'Verifying…'; btn.disabled = true;
 
-  // Verify the OTP token
-  var { data, error } = await _supabase.auth.verifyOtp({
-    email: _resetEmail,
-    token: token,
-    type: 'email'
-  });
-
-  if(error || !data.session) {
-    errEl.textContent = '❌ ' + (error ? error.message : 'Invalid or expired code. Try again.');
+  try {
+    var res = await fetch(
+      'https://xutsuhdyxwskwjxsryyi.supabase.co/functions/v1/send-reset-code',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON
+        },
+        body: JSON.stringify({ action: 'verify_code', email: _resetEmail, code: token })
+      }
+    );
+    var data = await res.json();
+    if(data.error) {
+      errEl.textContent = '❌ ' + data.error;
+      errEl.style.display = 'block';
+      btn.textContent = 'Verify Code →'; btn.disabled = false;
+      // Clear the input so user can try again
+      otpInput.value = '';
+      otpInput.focus();
+      return;
+    }
+    // Store the verified code for step 3
+    window._verifiedCode = token;
+    _buildResetModal('step3');
+  } catch(e) {
+    errEl.textContent = '❌ Network error. Please try again.';
     errEl.style.display = 'block';
     btn.textContent = 'Verify Code →'; btn.disabled = false;
-    return;
   }
-
-  // Code verified — move to step 3
-  _buildResetModal('step3');
 }
 
 async function doPasswordUpdate() {
@@ -8553,23 +8580,45 @@ async function doPasswordUpdate() {
 
   btn.textContent = 'Updating…'; btn.disabled = true;
 
-  var { error } = await _supabase.auth.updateUser({ password: newPass });
+  try {
+    var res = await fetch(
+      'https://xutsuhdyxwskwjxsryyi.supabase.co/functions/v1/send-reset-code',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + SUPABASE_ANON
+        },
+        body: JSON.stringify({
+          action: 'update_password',
+          email: _resetEmail,
+          code: window._verifiedCode,
+          new_password: newPass
+        })
+      }
+    );
+    var data = await res.json();
+    if(data.error) {
+      errEl.textContent = '❌ ' + data.error;
+      errEl.style.display = 'block';
+      btn.textContent = 'Update Password →'; btn.disabled = false;
+      return;
+    }
 
-  if(error) {
-    errEl.textContent = '❌ ' + error.message;
+    // Success — clean up and show sign in
+    window._verifiedCode = null;
+    _resetEmail = '';
+    var overlay = document.getElementById('pwResetOverlay');
+    if(overlay) overlay.remove();
+    showToast('✅ Password updated! Please sign in with your new password.');
+    setTimeout(function(){ openAuth('signin', 'Sign in with your new password'); }, 600);
+
+  } catch(e) {
+    errEl.textContent = '❌ Network error. Please try again.';
     errEl.style.display = 'block';
     btn.textContent = 'Update Password →'; btn.disabled = false;
-    return;
   }
-
-  // Sign out and show success
-  await _supabase.auth.signOut();
-  var overlay = document.getElementById('pwResetOverlay');
-  if(overlay) overlay.remove();
-  currentUser = null;
-  onLogout();
-  showToast('✅ Password updated! Please sign in with your new password.');
-  setTimeout(function(){ openAuth('signin', 'Sign in with your new password'); }, 500);
 }
 
 function cancelReset() {
