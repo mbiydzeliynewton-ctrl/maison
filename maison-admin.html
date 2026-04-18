@@ -410,27 +410,57 @@ tr:hover td{background:#fafaf8;}
 
 <!-- ORDER STATUS MODAL -->
 <div class="modal-overlay" id="orderModal">
-  <div class="modal-box">
+  <div class="modal-box" style="width:min(620px,96vw);">
     <div class="modal-head">
       <div class="modal-head-title">Update Order Status</div>
       <button class="modal-close" onclick="closeModal()">&#x2715;</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="editOrdId">
-      <div class="form-row"><label>Order ID</label><input type="text" id="editOrdRef" readonly style="background:var(--cream);color:var(--muted);"></div>
-      <div class="form-row"><label>New Status</label>
+
+      <!-- Order summary -->
+      <div style="background:var(--cream);padding:1rem;margin-bottom:1.25rem;border-left:3px solid var(--gold);">
+        <div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
+          <span style="font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">Order ID</span>
+          <span style="font-family:var(--mono);font-size:.7rem;font-weight:600;" id="editOrdRef">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
+          <span style="font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">Date</span>
+          <span style="font-family:var(--mono);font-size:.7rem;" id="editOrdDate">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
+          <span style="font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">Customer</span>
+          <span style="font-family:var(--mono);font-size:.7rem;" id="editOrdCustomer">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">Order Total</span>
+          <span style="font-family:var(--mono);font-size:.7rem;font-weight:600;" id="editOrdTotal">—</span>
+        </div>
+      </div>
+
+      <!-- All items in this order -->
+      <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem;">
+        Items in this order <span id="editOrdItemCount" style="color:var(--gold);"></span>
+      </div>
+      <div id="editOrdItems" style="border:1px solid var(--border);max-height:200px;overflow-y:auto;margin-bottom:1.25rem;">
+        <div class="loading">Loading items…</div>
+      </div>
+
+      <!-- Status selector -->
+      <div class="form-row">
+        <label>Update Status for ALL items above</label>
         <select id="editOrdStatus">
-          <option value="confirmed">Confirmed</option>
-          <option value="processing">Processing</option>
-          <option value="shipped">Shipped</option>
-          <option value="delivered">Delivered</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="confirmed">✅ Confirmed — order received</option>
+          <option value="processing">⚙️ Processing — being prepared</option>
+          <option value="shipped">🚚 Shipped — on the way</option>
+          <option value="delivered">📦 Delivered — received by customer</option>
+          <option value="cancelled">❌ Cancelled</option>
         </select>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-save" onclick="saveOrderStatus()">Update Status</button>
+      <button class="btn-save" onclick="saveOrderStatus()">Update All Items →</button>
     </div>
   </div>
 </div>
@@ -577,15 +607,23 @@ async function loadDashboard() {
   document.getElementById('ordBadge').textContent   = orders.filter(function(o){return o.status==='confirmed'||o.status==='processing';}).length;
   document.getElementById('bkBadge').textContent    = activeBk;
 
-  // Recent orders table
-  var recent = orders.slice(-10).reverse();
-  document.getElementById('recentOrders').innerHTML = ordersTableHTML(recent);
+  // Recent orders table — fetch with items
+  var { data: recentWithItems } = await _sbAdmin
+    .from('orders')
+    .select('*, order_items(name, qty)')
+    .order('ordered_at', { ascending: false })
+    .limit(10);
+  document.getElementById('recentOrders').innerHTML = ordersTableHTML(recentWithItems || []);
 }
 
 // ── ORDERS ───────────────────────────────────────────────────
 async function loadOrders() {
   document.getElementById('ordersTable').innerHTML = '<div class="loading">Loading…</div>';
-  var { data } = await _sbAdmin.from('orders').select('*').order('ordered_at', { ascending: false });
+  // Fetch orders WITH their items joined
+  var { data } = await _sbAdmin
+    .from('orders')
+    .select('*, order_items(name, qty, price)')
+    .order('ordered_at', { ascending: false });
   _orders = data || [];
   renderOrders(_orders);
 }
@@ -594,7 +632,8 @@ function filterOrders() {
   var q  = document.getElementById('ordSearch').value.toLowerCase();
   var st = document.getElementById('ordStatus').value;
   var filtered = _orders.filter(function(o) {
-    var matchQ  = !q  || o.id.toLowerCase().includes(q) || (o.payment_method||'').toLowerCase().includes(q);
+    var itemNames = (o.order_items||[]).map(function(i){ return i.name; }).join(' ').toLowerCase();
+    var matchQ  = !q  || o.id.toLowerCase().includes(q) || itemNames.includes(q);
     var matchSt = !st || o.status === st;
     return matchQ && matchSt;
   });
@@ -613,10 +652,16 @@ function ordersTableHTML(orders) {
     orders.map(function(o) {
       var date = new Date(o.ordered_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
       var statusCls = 'badge-' + (o.status||'pending');
+      // Build items summary from joined order_items
+      var items = o.order_items || [];
+      var itemsSummary = items.length > 0
+        ? items.map(function(i){ return i.name + (i.qty > 1 ? ' ×'+i.qty : ''); }).join(', ')
+        : '—';
+      var itemsDisplay = itemsSummary.length > 45 ? itemsSummary.substring(0,45) + '…' : itemsSummary;
       return '<tr>' +
         '<td><strong>' + o.id + '</strong></td>' +
         '<td>' + date + '</td>' +
-        '<td style="color:var(--muted);">' + (o.payment_method||'—') + '</td>' +
+        '<td title="' + itemsSummary + '" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + itemsDisplay + '</td>' +
         '<td><strong>$' + Number(o.total||0).toFixed(2) + '</strong></td>' +
         '<td style="color:var(--muted);">' + (o.payment_method||'—') + '</td>' +
         '<td><span class="badge ' + statusCls + '">' + (o.status||'pending') + '</span></td>' +
@@ -626,11 +671,65 @@ function ordersTableHTML(orders) {
     '</tbody></table>';
 }
 
-function editOrder(id, status) {
-  document.getElementById('editOrdId').value    = id;
-  document.getElementById('editOrdRef').value   = id;
+async function editOrder(id, status) {
+  document.getElementById('editOrdId').value     = id;
+  document.getElementById('editOrdRef').textContent = id;
+  document.getElementById('editOrdDate').textContent = '—';
+  document.getElementById('editOrdCustomer').textContent = '—';
+  document.getElementById('editOrdTotal').textContent = '—';
+  document.getElementById('editOrdItems').innerHTML = '<div class="loading">Loading items…</div>';
+  document.getElementById('editOrdItemCount').textContent = '';
   document.getElementById('editOrdStatus').value = status;
   openModal('orderModal');
+
+  // Fetch full order with items and profile
+  var { data: order } = await _sbAdmin
+    .from('orders')
+    .select('*, order_items(*), profiles(full_name, email)')
+    .eq('id', id)
+    .single();
+
+  if(!order) {
+    document.getElementById('editOrdItems').innerHTML = '<div class="empty">Order not found.</div>';
+    return;
+  }
+
+  // Fill summary
+  var date = new Date(order.ordered_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  var profile = order.profiles;
+  document.getElementById('editOrdDate').textContent     = date;
+  document.getElementById('editOrdCustomer').textContent = profile ? (profile.full_name || profile.email) : '—';
+  document.getElementById('editOrdTotal').textContent    = '$' + Number(order.total||0).toFixed(2);
+
+  // Fill items
+  var items = order.order_items || [];
+  document.getElementById('editOrdItemCount').textContent = '(' + items.length + ' item' + (items.length !== 1 ? 's' : '') + ')';
+
+  if(!items.length) {
+    document.getElementById('editOrdItems').innerHTML = '<div class="empty" style="padding:1rem;">No items found.</div>';
+    return;
+  }
+
+  document.getElementById('editOrdItems').innerHTML =
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<thead><tr>' +
+      '<th style="text-align:left;padding:.5rem .75rem;font-family:var(--mono);font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--cream);border-bottom:1px solid var(--border);">Item</th>' +
+      '<th style="text-align:left;padding:.5rem .75rem;font-family:var(--mono);font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--cream);border-bottom:1px solid var(--border);">Details</th>' +
+      '<th style="text-align:right;padding:.5rem .75rem;font-family:var(--mono);font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--cream);border-bottom:1px solid var(--border);">Qty</th>' +
+      '<th style="text-align:right;padding:.5rem .75rem;font-family:var(--mono);font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--cream);border-bottom:1px solid var(--border);">Subtotal</th>' +
+    '</tr></thead><tbody>' +
+    items.map(function(it, idx) {
+      var tags = [it.gender, it.brand, it.size ? 'Size: '+it.size : '', it.color].filter(Boolean).join(' · ');
+      var subtotal = Number(it.price||0) * Number(it.qty||1);
+      var bg = idx % 2 === 0 ? '' : 'background:#fafaf8;';
+      return '<tr style="' + bg + '">' +
+        '<td style="padding:.6rem .75rem;font-family:var(--mono);font-size:.68rem;border-bottom:1px solid var(--border);"><strong>' + it.name + '</strong></td>' +
+        '<td style="padding:.6rem .75rem;font-family:var(--mono);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border);">' + (tags||'—') + '</td>' +
+        '<td style="padding:.6rem .75rem;font-family:var(--mono);font-size:.68rem;text-align:right;border-bottom:1px solid var(--border);">×' + (it.qty||1) + '</td>' +
+        '<td style="padding:.6rem .75rem;font-family:var(--mono);font-size:.68rem;text-align:right;font-weight:600;border-bottom:1px solid var(--border);">$' + subtotal.toFixed(2) + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table>';
 }
 
 async function saveOrderStatus() {
@@ -840,11 +939,14 @@ function filterUsers() {
 function renderUsers(users) {
   if(!users.length) { document.getElementById('usersTable').innerHTML = '<div class="empty">No users found.</div>'; return; }
   document.getElementById('usersTable').innerHTML =
-    '<table><thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Tier</th><th>Points</th><th>Total Spent</th></tr></thead><tbody>' +
+    '<table><thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Tier</th><th>Points</th><th>Total Spent</th><th>Actions</th></tr></thead><tbody>' +
     users.map(function(u) {
       var joined = u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—';
       var tierCls = 'badge-' + (u.tier||'bronze');
       var tierEmoji = {bronze:'🥉',silver:'🥈',gold:'🥇',platinum:'💎'}[u.tier]||'';
+      var safeId = (u.id||'').replace(/'/g,"\\'");
+      var safeName = (u.full_name||'Unknown').replace(/'/g,"\\'");
+      var safeEmail = (u.email||'').replace(/'/g,"\\'");
       return '<tr>' +
         '<td><strong>' + (u.full_name||'—') + '</strong></td>' +
         '<td style="color:var(--muted);">' + (u.email||'—') + '</td>' +
@@ -852,9 +954,110 @@ function renderUsers(users) {
         '<td><span class="badge ' + tierCls + '">' + tierEmoji + ' ' + (u.tier||'bronze') + '</span></td>' +
         '<td>' + (u.points||0).toLocaleString() + ' pts</td>' +
         '<td><strong>$' + Number(u.spent||0).toFixed(2) + '</strong></td>' +
+        '<td><button class="act-btn" onclick="viewUserDetail(\'' + safeId + '\',\'' + safeName + '\',\'' + safeEmail + '\')">View Activity</button></td>' +
         '</tr>';
     }).join('') +
     '</tbody></table>';
+}
+
+// ── USER DETAIL VIEW ─────────────────────────────────────────
+async function viewUserDetail(userId, userName, userEmail) {
+  // Replace users panel content with user detail
+  var panel = document.getElementById('panel-users');
+  panel.innerHTML =
+    '<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;">' +
+      '<button class="act-btn" onclick="backToUsers()" style="font-size:.7rem;">← All Users</button>' +
+      '<div>' +
+        '<div style="font-family:var(--serif);font-size:1.4rem;font-weight:300;font-style:italic;">' + userName + '</div>' +
+        '<div style="font-family:var(--mono);font-size:.62rem;color:var(--muted);">' + userEmail + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="section-title">Orders</div>' +
+    '<div class="table-wrap" id="userOrdersTable"><div class="loading">Loading…</div></div>' +
+    '<div class="section-title" style="margin-top:1.5rem;">Bookings</div>' +
+    '<div class="table-wrap" id="userBookingsTable"><div class="loading">Loading…</div></div>';
+
+  // Load user's orders with items
+  var { data: orders } = await _sbAdmin
+    .from('orders')
+    .select('*, order_items(name, qty, price, size, color, gender)')
+    .eq('user_id', userId)
+    .order('ordered_at', { ascending: false });
+
+  var ordersEl = document.getElementById('userOrdersTable');
+  if(!orders || !orders.length) {
+    ordersEl.innerHTML = '<div class="empty">No orders yet.</div>';
+  } else {
+    ordersEl.innerHTML =
+      '<table><thead><tr><th>Order ID</th><th>Date</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+      orders.map(function(o) {
+        var date = new Date(o.ordered_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+        var statusCls = 'badge-' + (o.status||'pending');
+        var items = o.order_items || [];
+        // Show each item on its own line with all details
+        var itemsHtml = items.length > 0
+          ? items.map(function(i){
+              var tags = [i.gender, i.size ? 'Size: '+i.size : '', i.color].filter(Boolean).join(' · ');
+              return '<div style="margin-bottom:2px;">' +
+                '<strong>' + i.name + '</strong>' + (i.qty > 1 ? ' <span style="color:var(--muted);">×'+i.qty+'</span>' : '') +
+                (tags ? '<br><span style="color:var(--muted);font-size:.58rem;">' + tags + '</span>' : '') +
+              '</div>';
+            }).join('')
+          : '—';
+        return '<tr>' +
+          '<td><strong>' + o.id + '</strong></td>' +
+          '<td style="white-space:nowrap;">' + date + '</td>' +
+          '<td style="min-width:180px;">' + itemsHtml + '</td>' +
+          '<td><strong>$' + Number(o.total||0).toFixed(2) + '</strong></td>' +
+          '<td style="color:var(--muted);">' + (o.payment_method||'—') + '</td>' +
+          '<td><span class="badge ' + statusCls + '">' + (o.status||'pending') + '</span></td>' +
+          '<td><button class="act-btn" onclick="editOrder(\'' + o.id + '\',\'' + o.status + '\')">Edit</button></td>' +
+          '</tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+
+  // Load user's bookings
+  var { data: bookings } = await _sbAdmin
+    .from('bookings')
+    .select('*')
+    .eq('user_id', userId)
+    .order('booked_at', { ascending: false });
+
+  var bkEl = document.getElementById('userBookingsTable');
+  if(!bookings || !bookings.length) {
+    bkEl.innerHTML = '<div class="empty">No bookings yet.</div>';
+  } else {
+    bkEl.innerHTML =
+      '<table><thead><tr><th>Booking ID</th><th>Type</th><th>Item</th><th>Date</th><th>Deposit</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+      bookings.map(function(b) {
+        var type = b.booking_type === 'house_viewing' ? '🏠 Viewing' : '🚗 Test Drive';
+        var statusCls = 'badge-' + (b.status||'pending');
+        return '<tr>' +
+          '<td><strong>' + b.id + '</strong></td>' +
+          '<td>' + type + '</td>' +
+          '<td>' + (b.item_name||'—') + '</td>' +
+          '<td>' + (b.preferred_date||'—') + '</td>' +
+          '<td>$' + Number(b.deposit_amount||0).toFixed(2) + '</td>' +
+          '<td><span class="badge ' + statusCls + '">' + (b.status||'pending') + '</span></td>' +
+          '<td style="display:flex;gap:.35rem;">' +
+            (b.status === 'pending' ? '<button class="act-btn success" onclick="updateBooking(\'' + b.id + '\',\'confirmed\')">Confirm</button>' : '') +
+            (b.status !== 'cancelled' ? '<button class="act-btn danger" onclick="updateBooking(\'' + b.id + '\',\'cancelled\')">Cancel</button>' : '') +
+          '</td>' +
+          '</tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+}
+
+function backToUsers() {
+  var panel = document.getElementById('panel-users');
+  panel.innerHTML =
+    '<div class="filter-bar">' +
+      '<input type="text" id="userSearch" placeholder="Search by name or email…" oninput="filterUsers()">' +
+    '</div>' +
+    '<div class="table-wrap" id="usersTable"><div class="loading">Loading…</div></div>';
+  loadUsers();
 }
 
 // ── MODAL HELPERS ─────────────────────────────────────────────
