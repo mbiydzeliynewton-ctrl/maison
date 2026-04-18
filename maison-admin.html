@@ -463,7 +463,29 @@ tr:hover td{background:#fafaf8;}
           </select>
         </div>
       </div>
-      <div class="form-row"><label>Image URL</label><input type="text" id="pImg" placeholder="https://…"></div>
+      <div class="form-row">
+        <label>Product Images</label>
+        <!-- Upload from computer -->
+        <div id="imgUploadArea" style="border:2px dashed var(--border);padding:1.25rem;text-align:center;cursor:pointer;transition:border-color .15s;background:#fff;position:relative;" onclick="document.getElementById('imgFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='var(--gold)';" ondragleave="this.style.borderColor='var(--border)';" ondrop="handleImgDrop(event)">
+          <svg viewBox="0 0 24 24" width="28" stroke="var(--muted)" fill="none" stroke-width="1.5" style="display:block;margin:0 auto .5rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div style="font-family:var(--mono);font-size:.65rem;color:var(--muted);">Click to upload or drag &amp; drop</div>
+          <div style="font-family:var(--mono);font-size:.55rem;color:var(--border);margin-top:.25rem;">JPG, PNG, WEBP · Max 5MB each · Multiple allowed</div>
+          <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none;" onchange="handleImgFiles(this.files)">
+        </div>
+        <!-- Upload progress -->
+        <div id="imgUploadProgress" style="display:none;margin-top:.5rem;font-family:var(--mono);font-size:.62rem;color:var(--muted);"></div>
+        <!-- Image previews -->
+        <div id="imgPreviews" style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;"></div>
+        <!-- Hidden field stores final URLs -->
+        <input type="hidden" id="pImg">
+        <!-- OR paste URL directly -->
+        <div style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;">
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+          <span style="font-family:var(--mono);font-size:.55rem;color:var(--muted);white-space:nowrap;">or paste URL directly</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+        </div>
+        <input type="text" id="pImgUrl" placeholder="https://images.unsplash.com/…" style="width:100%;margin-top:.5rem;padding:.6rem .85rem;border:1px solid var(--border);background:#fff;font-family:var(--mono);font-size:.72rem;outline:none;" oninput="addUrlPreview(this.value)">
+      </div>
       <div class="form-row"><label>Description</label><textarea id="pDesc" placeholder="Product description…"></textarea></div>
     </div>
     <div class="modal-foot">
@@ -874,6 +896,112 @@ async function updateBooking(id, status) {
   loadBookings();
 }
 
+// ── IMAGE UPLOAD ─────────────────────────────────────────────
+var _uploadedImageUrls = []; // stores all confirmed image URLs for this product
+
+function resetImgUploader() {
+  _uploadedImageUrls = [];
+  document.getElementById('imgPreviews').innerHTML = '';
+  document.getElementById('imgUploadProgress').style.display = 'none';
+  document.getElementById('pImgUrl').value = '';
+  document.getElementById('pImg').value = '';
+  document.getElementById('imgFileInput').value = '';
+}
+
+function addUrlPreview(url) {
+  if(!url || !url.startsWith('http')) return;
+  // Debounce — only add after user stops typing
+  clearTimeout(window._urlDebounce);
+  window._urlDebounce = setTimeout(function() {
+    if(!_uploadedImageUrls.includes(url)) {
+      _uploadedImageUrls.push(url);
+      renderImgPreviews();
+      document.getElementById('pImg').value = _uploadedImageUrls[0];
+    }
+  }, 800);
+}
+
+async function handleImgFiles(files) {
+  if(!files || !files.length) return;
+  var progressEl = document.getElementById('imgUploadProgress');
+  progressEl.style.display = 'block';
+
+  for(var i = 0; i < files.length; i++) {
+    var file = files[i];
+    if(file.size > 5 * 1024 * 1024) {
+      progressEl.textContent = '❌ ' + file.name + ' is too large (max 5MB)';
+      continue;
+    }
+    progressEl.textContent = 'Uploading ' + (i+1) + '/' + files.length + ': ' + file.name + '…';
+    var url = await uploadImageToSupabase(file);
+    if(url) {
+      _uploadedImageUrls.push(url);
+      renderImgPreviews();
+      document.getElementById('pImg').value = _uploadedImageUrls[0];
+    }
+  }
+
+  progressEl.textContent = '✅ ' + _uploadedImageUrls.length + ' image' + (_uploadedImageUrls.length !== 1 ? 's' : '') + ' ready';
+  setTimeout(function(){ progressEl.style.display = 'none'; }, 2500);
+}
+
+function handleImgDrop(event) {
+  event.preventDefault();
+  document.getElementById('imgUploadArea').style.borderColor = 'var(--border)';
+  var files = event.dataTransfer.files;
+  if(files && files.length) handleImgFiles(files);
+}
+
+async function uploadImageToSupabase(file) {
+  try {
+    // Generate unique filename
+    var ext = file.name.split('.').pop().toLowerCase();
+    var fileName = 'product-' + Date.now() + '-' + Math.random().toString(36).substr(2,6) + '.' + ext;
+
+    var { data, error } = await _sbAdmin.storage
+      .from('product-images')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type
+      });
+
+    if(error) {
+      console.error('Upload error:', error.message);
+      showToast('❌ Upload failed: ' + error.message);
+      return null;
+    }
+
+    // Get public URL
+    var { data: urlData } = _sbAdmin.storage
+      .from('product-images')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  } catch(e) {
+    console.error('Upload exception:', e);
+    showToast('❌ Upload error: ' + e.message);
+    return null;
+  }
+}
+
+function renderImgPreviews() {
+  var el = document.getElementById('imgPreviews');
+  el.innerHTML = _uploadedImageUrls.map(function(url, idx) {
+    return '<div style="position:relative;width:72px;height:72px;flex-shrink:0;">' +
+      '<img src="' + url + '" style="width:72px;height:72px;object-fit:cover;border:1px solid var(--border);" onerror="this.style.background=\'var(--cream)\'">' +
+      (idx === 0 ? '<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(184,149,90,.85);font-family:var(--mono);font-size:.45rem;text-align:center;color:#fff;padding:.1rem;">MAIN</div>' : '') +
+      '<button onclick="removeImg(' + idx + ')" style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:.6rem;line-height:1;display:flex;align-items:center;justify-content:center;">×</button>' +
+    '</div>';
+  }).join('');
+}
+
+function removeImg(idx) {
+  _uploadedImageUrls.splice(idx, 1);
+  renderImgPreviews();
+  document.getElementById('pImg').value = _uploadedImageUrls[0] || '';
+}
+
 // ── PRODUCTS ─────────────────────────────────────────────────
 async function loadProducts() {
   document.getElementById('productsTable').innerHTML = '<div class="loading">Loading…</div>';
@@ -918,9 +1046,10 @@ function renderProducts(products) {
 function openAddProduct() {
   document.getElementById('prodId').value = '';
   document.getElementById('prodModalTitle').textContent = 'Add Product';
-  ['pName','pPrice','pOldPrice','pStock','pBrand','pImg','pDesc'].forEach(function(id){ document.getElementById(id).value=''; });
+  ['pName','pPrice','pOldPrice','pStock','pBrand','pDesc'].forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('pBadge').value = '';
   document.getElementById('pGender').value = '';
+  resetImgUploader();
   openModal('productModal');
 }
 
@@ -937,8 +1066,14 @@ function editProduct(id) {
   document.getElementById('pBadge').value       = p.badge || '';
   document.getElementById('pBrand').value       = p.brand || '';
   document.getElementById('pGender').value      = p.gender || '';
-  document.getElementById('pImg').value         = (p.images && p.images[0]) || '';
   document.getElementById('pDesc').value        = p.description || '';
+  // Load existing images into uploader
+  resetImgUploader();
+  _uploadedImageUrls = (p.images || []).filter(Boolean);
+  if(_uploadedImageUrls.length) {
+    renderImgPreviews();
+    document.getElementById('pImg').value = _uploadedImageUrls[0];
+  }
   openModal('productModal');
 }
 
@@ -952,14 +1087,17 @@ async function saveProduct() {
   var badge    = document.getElementById('pBadge').value || null;
   var brand    = document.getElementById('pBrand').value.trim() || null;
   var gender   = document.getElementById('pGender').value || null;
-  var img      = document.getElementById('pImg').value.trim() || null;
+  // Use all uploaded images, fall back to pasted URL
+  var pImgUrl = document.getElementById('pImgUrl').value.trim();
+  if(pImgUrl && !_uploadedImageUrls.includes(pImgUrl)) _uploadedImageUrls.push(pImgUrl);
+  var images = _uploadedImageUrls.length > 0 ? _uploadedImageUrls : null;
   var desc     = document.getElementById('pDesc').value.trim() || null;
 
   if(!name || !price) { showToast('Name and price are required'); return; }
 
   var slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
   var row = { name, slug, category, price, old_price: oldPrice, stock, badge, brand, gender, description: desc,
-    images: img ? [img] : null, is_active: true };
+    images: images, is_active: true };
 
   var error;
   if(id) {
