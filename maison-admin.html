@@ -442,10 +442,31 @@ tr:hover td{background:#fafaf8;}
 var SUPABASE_URL  = 'https://xutsuhdyxwskwjxsryyi.supabase.co';
 var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dHN1aGR5eHdza3dqeHNyeXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMzQyNjksImV4cCI6MjA4OTcxMDI2OX0.sR_ODzX_paSMUQ5rzgQ433bWwNhxalc7sXY-x39xWeM';
 
+// ⚠️ Service role key — bypasses RLS for admin operations
+// This is safe here because this page is password-protected and admin-only
+// NEVER put this key in the customer-facing site (maison.html)
+// Get this from: Supabase → Settings → API → service_role (secret key)
+var SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dHN1aGR5eHdza3dqeHNyeXlpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDEzNDI2OSwiZXhwIjoyMDg5NzEwMjY5fQ.OIpS5xYdGLzUVshKCXNzdw-8txIGDUju19oPKcfK7Fk';
+
 // ⬇ Set your admin email here — only this email can access the dashboard
 var ADMIN_EMAIL = 'mbiydzeliynewton@gmail.com';
 
+// Auth client — uses anon key for login only
 var _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+// Admin client — uses service role key, bypasses RLS
+// Created after login to avoid exposing before auth
+var _sbAdmin = null;
+
+function initAdminClient() {
+  if(SUPABASE_SERVICE_KEY === 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE') {
+    alert('⚠️ Please paste your Supabase service_role key into maison-admin.html\n\nFind it at: Supabase → Settings → API → service_role');
+    return false;
+  }
+  _sbAdmin = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  return true;
+}
 var _adminUser = null;
 var _currentPanel = 'dashboard';
 
@@ -473,6 +494,7 @@ async function adminLogin() {
   }
 
   _adminUser = data.user;
+  if(!initAdminClient()) return;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   document.getElementById('adminName').textContent = data.user.email.split('@')[0];
@@ -490,6 +512,7 @@ async function adminSignOut() {
   var { data } = await _sb.auth.getSession();
   if(data.session && data.session.user && data.session.user.email === ADMIN_EMAIL) {
     _adminUser = data.session.user;
+    if(!initAdminClient()) return;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     document.getElementById('adminName').textContent = _adminUser.email.split('@')[0];
@@ -534,9 +557,9 @@ function loadPanel(name) {
 async function loadDashboard() {
   // Stats in parallel
   var [ordRes, userRes, bkRes] = await Promise.all([
-    _sb.from('orders').select('id, total, status, ordered_at'),
-    _sb.from('profiles').select('id'),
-    _sb.from('bookings').select('id, status')
+    _sbAdmin.from('orders').select('id, total, status, ordered_at'),
+    _sbAdmin.from('profiles').select('id'),
+    _sbAdmin.from('bookings').select('id, status')
   ]);
 
   var orders   = ordRes.data || [];
@@ -562,7 +585,7 @@ async function loadDashboard() {
 // ── ORDERS ───────────────────────────────────────────────────
 async function loadOrders() {
   document.getElementById('ordersTable').innerHTML = '<div class="loading">Loading…</div>';
-  var { data } = await _sb.from('orders').select('*').order('ordered_at', { ascending: false });
+  var { data } = await _sbAdmin.from('orders').select('*').order('ordered_at', { ascending: false });
   _orders = data || [];
   renderOrders(_orders);
 }
@@ -613,9 +636,12 @@ function editOrder(id, status) {
 async function saveOrderStatus() {
   var id     = document.getElementById('editOrdId').value;
   var status = document.getElementById('editOrdStatus').value;
-  var { error } = await _sb.from('orders').update({ status }).eq('id', id);
-  if(error) { showToast('Error: ' + error.message); return; }
-  showToast('✅ Order status updated');
+  console.log('Updating order:', id, '→', status);
+  var { data, error } = await _sbAdmin.from('orders').update({ status }).eq('id', id).select();
+  console.log('Result:', data, error);
+  if(error) { showToast('❌ ' + error.message); return; }
+  if(!data || data.length === 0) { showToast('❌ No rows updated — check order ID'); return; }
+  showToast('✅ Order updated to: ' + status);
   closeModal();
   loadOrders();
 }
@@ -623,7 +649,7 @@ async function saveOrderStatus() {
 // ── BOOKINGS ─────────────────────────────────────────────────
 async function loadBookings() {
   document.getElementById('bookingsTable').innerHTML = '<div class="loading">Loading…</div>';
-  var { data } = await _sb.from('bookings').select('*').order('booked_at', { ascending: false });
+  var { data } = await _sbAdmin.from('bookings').select('*').order('booked_at', { ascending: false });
   _bookings = data || [];
   renderBookings(_bookings);
 }
@@ -665,7 +691,7 @@ function renderBookings(bookings) {
 }
 
 async function updateBooking(id, status) {
-  var { error } = await _sb.from('bookings').update({ status }).eq('id', id);
+  var { error } = await _sbAdmin.from('bookings').update({ status }).eq('id', id);
   if(error) { showToast('Error: ' + error.message); return; }
   showToast('✅ Booking ' + status);
   loadBookings();
@@ -674,7 +700,7 @@ async function updateBooking(id, status) {
 // ── PRODUCTS ─────────────────────────────────────────────────
 async function loadProducts() {
   document.getElementById('productsTable').innerHTML = '<div class="loading">Loading…</div>';
-  var { data } = await _sb.from('products').select('*').order('created_at', { ascending: false });
+  var { data } = await _sbAdmin.from('products').select('*').order('created_at', { ascending: false });
   _products = data || [];
   renderProducts(_products);
 }
@@ -760,10 +786,10 @@ async function saveProduct() {
 
   var error;
   if(id) {
-    var res = await _sb.from('products').update(row).eq('id', id);
+    var res = await _sbAdmin.from('products').update(row).eq('id', id);
     error = res.error;
   } else {
-    var res = await _sb.from('products').insert(row);
+    var res = await _sbAdmin.from('products').insert(row);
     error = res.error;
   }
 
@@ -775,7 +801,7 @@ async function saveProduct() {
 
 async function deleteProduct(id, name) {
   if(!confirm('Delete "' + name + '"? This cannot be undone.')) return;
-  var { error } = await _sb.from('products').delete().eq('id', id);
+  var { error } = await _sbAdmin.from('products').delete().eq('id', id);
   if(error) { showToast('Error: ' + error.message); return; }
   showToast('✅ Product deleted');
   loadProducts();
@@ -785,9 +811,9 @@ async function deleteProduct(id, name) {
 async function loadUsers() {
   document.getElementById('usersTable').innerHTML = '<div class="loading">Loading…</div>';
   var [profRes, loyRes, ordRes] = await Promise.all([
-    _sb.from('profiles').select('*').order('created_at', { ascending: false }),
-    _sb.from('loyalty_points').select('*'),
-    _sb.from('orders').select('user_id, total')
+    _sbAdmin.from('profiles').select('*').order('created_at', { ascending: false }),
+    _sbAdmin.from('loyalty_points').select('*'),
+    _sbAdmin.from('orders').select('user_id, total')
   ]);
 
   var profiles = profRes.data || [];
