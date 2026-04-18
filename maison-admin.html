@@ -14,7 +14,7 @@
   --blue:#2c6fad;--sidebar:240px;
   --mono:'DM Mono',monospace;--serif:'Cormorant Garamond',Georgia,serif;
 }
-
+#app{display:none;height:100vh;overflow:hidden;width:100%;}
 /* ── LOGIN ── */
 #loginScreen{
   position:fixed;inset:0;background:var(--ink);display:flex;
@@ -83,7 +83,8 @@
 
 .main{
   margin-left:var(--sidebar);height:100vh;overflow-y:auto;
-  background:var(--paper);
+  background:var(--paper);width:calc(100% - var(--sidebar));
+  box-sizing:border-box;
 }
 .topbar{
   padding:1.25rem 2rem;border-bottom:1px solid var(--border);
@@ -488,7 +489,7 @@ var _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 var _sbAdmin = null;
 
 function initAdminClient() {
-  if(SUPABASE_SERVICE_KEY === 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE') {
+  if(SUPABASE_SERVICE_KEY === 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh1dHN1aGR5eHdza3dqeHNyeXlpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDEzNDI2OSwiZXhwIjoyMDg5NzEwMjY5fQ.OIpS5xYdGLzUVshKCXNzdw-8txIGDUju19oPKcfK7Fk') {
     alert('⚠️ Please paste your Supabase service_role key into maison-admin.html\n\nFind it at: Supabase → Settings → API → service_role');
     return false;
   }
