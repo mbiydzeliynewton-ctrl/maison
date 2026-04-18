@@ -206,10 +206,67 @@ tr:hover td{background:#fafaf8;}
 .panel{display:none;}
 .panel.active{display:block;}
 
+/* ── HAMBURGER BUTTON (mobile only) ── */
+.mob-menu-btn{
+  display:none;background:none;border:none;cursor:pointer;
+  padding:.5rem;color:var(--ink);flex-shrink:0;
+}
+.mob-menu-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;}
+
+/* ── SIDEBAR OVERLAY (mobile) ── */
+.sidebar-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:99;
+}
+.sidebar-overlay.open{display:block;}
+
 @media(max-width:900px){
+  /* Stats — 2 columns on tablet, 1 on phone */
   .stats-grid{grid-template-columns:1fr 1fr;}
-  .sidebar{transform:translateX(-100%);}
-  .main{margin-left:0;}
+
+  /* Sidebar slides in as drawer */
+  .sidebar{
+    transform:translateX(-100%);
+    transition:transform .25s ease;
+    z-index:200;
+  }
+  .sidebar.open{transform:translateX(0);}
+
+  /* Main fills full width */
+  .main{
+    margin-left:0 !important;
+    width:100% !important;
+  }
+
+  /* Show hamburger */
+  .mob-menu-btn{display:flex;align-items:center;justify-content:center;}
+
+  /* Topbar adjustment */
+  .topbar{padding:.85rem 1rem;}
+  .page-title{font-size:1.25rem;}
+
+  /* Content padding */
+  .content{padding:1rem;}
+
+  /* Hide last updated text on small screens */
+  #lastUpdated{display:none;}
+
+  /* Tables scroll horizontally */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{min-width:560px;}
+
+  /* Form 2-col becomes 1-col on mobile */
+  .form-2col{grid-template-columns:1fr;}
+
+  /* Stat cards 1 column on very small screens */
+  @media(max-width:480px){
+    .stats-grid{grid-template-columns:1fr;}
+  }
+
+  /* Modal full width on mobile */
+  .modal-box{width:96vw !important;max-height:92vh;}
+  .modal-body{padding:1rem 1.25rem;}
+  .modal-foot{padding:.75rem 1.25rem;}
 }
 </style>
 </head>
@@ -234,9 +291,12 @@ tr:hover td{background:#fafaf8;}
 </div>
 
 <!-- MAIN APP -->
+<!-- Sidebar overlay for mobile -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
 <div id="app">
   <!-- Sidebar -->
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-text">Mai<span>s</span>on</div>
       <div class="sidebar-sub">Admin Panel</div>
@@ -275,6 +335,10 @@ tr:hover td{background:#fafaf8;}
   <!-- Main content -->
   <div class="main">
     <div class="topbar">
+      <!-- Hamburger — mobile only -->
+      <button class="mob-menu-btn" onclick="openSidebar()" aria-label="Open menu">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <div class="page-title" id="pageTitle">Dashboard</div>
       <div class="topbar-right">
         <span style="font-family:var(--mono);font-size:.6rem;color:var(--muted);" id="lastUpdated"></span>
@@ -557,6 +621,18 @@ document.getElementById('adminPass').addEventListener('keydown', function(e) {
   if(e.key === 'Enter') adminLogin();
 });
 
+// ── MOBILE SIDEBAR ───────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 // ── PANEL NAVIGATION ─────────────────────────────────────────
 var panelTitles = {
   dashboard:'Dashboard', orders:'Orders', bookings:'Bookings',
@@ -570,6 +646,7 @@ function showPanel(name) {
   document.getElementById('panel-'+name).classList.add('active');
   document.querySelector(`[onclick="showPanel('${name}')"]`).classList.add('active');
   document.getElementById('pageTitle').textContent = panelTitles[name];
+  closeSidebar(); // close on mobile after selection
   loadPanel(name);
 }
 
