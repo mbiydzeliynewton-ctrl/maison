@@ -4331,8 +4331,8 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
         <h1 class="houses-hero-title">Your Perfect<br><em>Rental Home</em></h1>
         <p class="houses-hero-desc">Flexible short-term and long-term rentals across world-class cities. No hidden fees — all bills and services clearly stated.</p>
         <div class="is_display_211">
-          <button class="btn btn-green" onclick="nav('houses')">Browse All Rentals →</button>
-          <button class="btn btn-outline is_color_98" onclick="nav('houses')">Short Stays</button>
+          <button class="btn btn-green" onclick="document.getElementById('houses-rent').scrollIntoView({behavior:'smooth',block:'start'})">Browse All Rentals →</button>
+          <button class="btn btn-outline is_color_98" onclick="showHousesView('houses-rent');setTimeout(function(){document.getElementById('houses-rent').scrollIntoView({behavior:'smooth',block:'start'});},100)">Short Stays</button>
         </div>
       </div>
       <div class="houses-hero-stats">
@@ -4730,9 +4730,9 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
         <h1 class="cars-hero-title">Rent Your <em>Dream Drive</em></h1>
         <p class="cars-hero-desc">Hourly, daily, and weekly rentals across the UK and Europe. From city-friendly electrics to supercar experiences — all-inclusive pricing, no surprises.</p>
         <div class="is_display_211">
-          <button class="btn is_background_204" data-carsview="cars-rent">Browse All Rentals →</button>
+          <button class="btn is_background_204" onclick="document.getElementById('cars-rent').scrollIntoView({behavior:'smooth',block:'start'})">Browse All Rentals →</button>
           <button class="btn btn-gold" data-action="openAgent">Speak to an Agent →</button>
-          <button class="btn btn-outline is_color_98" onclick="document.getElementById('carCatFilter') ? (document.getElementById('carCatFilter').value='supercar', applyCarFilters()) : nav('cars')">Supercar Experiences</button>
+          <button class="btn btn-outline is_color_98" onclick="(function(){ showCarsView('cars-rent'); setTimeout(function(){ var f=document.getElementById('carCatFilter'); if(f){f.value='supercar'; if(typeof applyCarFilters==='function') applyCarFilters();} var el=document.getElementById('cars-rent'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },200); })()">Supercar Experiences</button>
         </div>
       </div>
       <div class="cars-hero-stats">
@@ -8954,17 +8954,54 @@ function selectPayMethod(method) {
 //  LOCATION DETECT
 // ════════════════════════════════════════════════════════════
 function detectLocation() {
-  if(!navigator.geolocation) { showToast('Geolocation not supported'); return; }
-  showToast('Detecting your location...');
+  if(!navigator.geolocation) { showToast('Geolocation not supported by your browser'); return; }
+  var ls = document.getElementById('locationStatus');
+  if(ls) { ls.style.display='block'; ls.textContent='Detecting location…'; }
+  showToast('📍 Detecting your location...');
   navigator.geolocation.getCurrentPosition(
-    function(pos) {
+    async function(pos) {
       var lat = pos.coords.latitude;
       var lng = pos.coords.longitude;
-      var ls = document.getElementById('locationStatus');
-      if(ls) { ls.style.display = 'block'; ls.textContent = 'Location detected: ' + lat.toFixed(4) + ', ' + lng.toFixed(4); }
-      showToast('Location detected!');
+      try {
+        // Reverse geocode using OpenStreetMap Nominatim (free, no API key)
+        var res = await fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&addressdetails=1', {
+          headers: { 'Accept-Language': 'en', 'User-Agent': 'Maison-Marketplace/1.0' }
+        });
+        var data = await res.json();
+        var addr = data.address || {};
+        // Fill address fields
+        var street = [addr.house_number, addr.road, addr.neighbourhood, addr.suburb].filter(Boolean).join(' ');
+        var city   = addr.city || addr.town || addr.village || addr.county || '';
+        var region = addr.state || addr.region || '';
+        var country= addr.country || '';
+        var postal = addr.postcode || '';
+        if(document.getElementById('addrStreet') && street) document.getElementById('addrStreet').value = street;
+        if(document.getElementById('addrCity')   && city)   document.getElementById('addrCity').value   = city;
+        if(document.getElementById('addrRegion') && region) document.getElementById('addrRegion').value = region;
+        if(document.getElementById('addrZip')    && postal) document.getElementById('addrZip').value    = postal;
+        // Match country to select
+        if(document.getElementById('addrCountry') && country) {
+          var sel = document.getElementById('addrCountry');
+          for(var i=0;i<sel.options.length;i++) {
+            if(sel.options[i].text.toLowerCase() === country.toLowerCase()) { sel.selectedIndex=i; break; }
+          }
+        }
+        if(ls) { ls.style.display='block'; ls.textContent='✓ Location detected: ' + city + (region?', '+region:''); }
+        showToast('✅ Address filled from your location!');
+      } catch(e) {
+        // Fallback — just show coordinates
+        if(ls) { ls.style.display='block'; ls.textContent='✓ Location detected: '+lat.toFixed(4)+', '+lng.toFixed(4); }
+        showToast('📍 Location detected — please complete your address manually');
+      }
     },
-    function() { showToast('Could not get location. Enter manually.'); }
+    function(err) {
+      var msg = err.code === 1 ? 'Location access denied. Please allow location in your browser settings.' :
+                err.code === 2 ? 'Location unavailable. Please enter your address manually.' :
+                'Location request timed out. Please enter manually.';
+      showToast('❌ ' + msg);
+      if(ls) { ls.style.display='none'; }
+    },
+    { timeout: 10000, enableHighAccuracy: true }
   );
 }
 
