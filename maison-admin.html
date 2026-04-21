@@ -324,6 +324,11 @@ tr:hover td{background:#fafaf8;}
         <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Users
       </div>
+      <div class="nav-item" onclick="showPanel('messages')">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Messages
+        <span class="nav-badge" id="msgBadge">0</span>
+      </div>
     </nav>
     <div class="sidebar-footer">
       <strong id="adminName">Admin</strong>
@@ -403,6 +408,21 @@ tr:hover td{background:#fafaf8;}
           <button class="refresh-btn" onclick="openAddProduct()">+ Add Product</button>
         </div>
         <div class="table-wrap" id="productsTable"><div class="loading">Loading…</div></div>
+      </div>
+
+      <!-- MESSAGES -->
+      <div class="panel" id="panel-messages">
+        <div class="filter-bar">
+          <input type="text" id="msgSearch" placeholder="Search messages…" oninput="filterMessages()">
+          <select id="msgStatus" onchange="filterMessages()">
+            <option value="">All</option>
+            <option value="new">New</option>
+            <option value="read">Read</option>
+            <option value="replied">Replied</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+        <div class="table-wrap" id="messagesTable"><div class="loading">Loading…</div></div>
       </div>
 
       <!-- USERS -->
@@ -658,7 +678,7 @@ function closeSidebar() {
 // ── PANEL NAVIGATION ─────────────────────────────────────────
 var panelTitles = {
   dashboard:'Dashboard', orders:'Orders', bookings:'Bookings',
-  products:'Products', users:'Users'
+  products:'Products', users:'Users', messages:'Contact Messages'
 };
 
 function showPanel(name) {
@@ -681,6 +701,7 @@ function loadPanel(name) {
   else if(name === 'bookings') loadBookings();
   else if(name === 'products') loadProducts();
   else if(name === 'users')    loadUsers();
+  else if(name === 'messages') loadMessages();
 }
 
 // ── DASHBOARD ────────────────────────────────────────────────
@@ -705,6 +726,10 @@ async function loadDashboard() {
   document.getElementById('s-bookings').textContent = activeBk;
 
   document.getElementById('ordBadge').textContent   = orders.filter(function(o){return o.status==='confirmed'||o.status==='processing';}).length;
+  // Load message badge count
+  _sbAdmin.from('contact_submissions').select('id').eq('status','new').then(function(res){
+    if(res.data) document.getElementById('msgBadge').textContent = res.data.length;
+  });
   document.getElementById('bkBadge').textContent    = activeBk;
 
   // Recent orders table — fetch with items
@@ -1274,6 +1299,65 @@ function backToUsers() {
     '</div>' +
     '<div class="table-wrap" id="usersTable"><div class="loading">Loading…</div></div>';
   loadUsers();
+}
+
+// ── MESSAGES ─────────────────────────────────────────────────
+var _messages = [];
+
+async function loadMessages() {
+  document.getElementById('messagesTable').innerHTML = '<div class="loading">Loading…</div>';
+  var { data } = await _sbAdmin
+    .from('contact_submissions')
+    .select('*')
+    .order('submitted_at', { ascending: false });
+  _messages = data || [];
+  // Update badge with unread count
+  var newCount = _messages.filter(function(m){ return m.status === 'new'; }).length;
+  document.getElementById('msgBadge').textContent = newCount;
+  renderMessages(_messages);
+}
+
+function filterMessages() {
+  var q  = document.getElementById('msgSearch').value.toLowerCase();
+  var st = document.getElementById('msgStatus').value;
+  var filtered = _messages.filter(function(m) {
+    var matchQ  = !q || (m.full_name||'').toLowerCase().includes(q) || (m.email||'').toLowerCase().includes(q) || (m.message||'').toLowerCase().includes(q);
+    var matchSt = !st || m.status === st;
+    return matchQ && matchSt;
+  });
+  renderMessages(filtered);
+}
+
+function renderMessages(msgs) {
+  if(!msgs.length) { document.getElementById('messagesTable').innerHTML = '<div class="empty">No messages found.</div>'; return; }
+  document.getElementById('messagesTable').innerHTML =
+    '<table><thead><tr><th>From</th><th>Email</th><th>Subject</th><th>Message</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+    msgs.map(function(m) {
+      var date = new Date(m.submitted_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+      var statusCls = m.status === 'new' ? 'badge-new' : m.status === 'replied' ? 'badge-delivered' : 'badge-pending';
+      var preview = (m.message||'').substring(0,60) + ((m.message||'').length > 60 ? '…' : '');
+      return '<tr style="' + (m.status === 'new' ? 'background:#fffef5;' : '') + '">' +
+        '<td><strong>' + (m.full_name||'—') + '</strong></td>' +
+        '<td style="color:var(--muted);"><a href="mailto:' + m.email + '" style="color:var(--blue);text-decoration:none;">' + (m.email||'—') + '</a></td>' +
+        '<td>' + (m.subject||'General Enquiry') + '</td>' +
+        '<td style="color:var(--muted);max-width:200px;" title="' + (m.message||'').replace(/"/g,"'") + '">' + preview + '</td>' +
+        '<td style="white-space:nowrap;">' + date + '</td>' +
+        '<td><span class="badge ' + statusCls + '">' + (m.status||'new') + '</span></td>' +
+        '<td style="display:flex;gap:.35rem;">' +
+          (m.status === 'new' ? '<button class="act-btn" onclick=\'updateMsgStatus("' + m.id + '","read")\'>Mark Read</button>' : '') +
+          '<button class="act-btn success" onclick=\'updateMsgStatus("' + m.id + '","replied")\'>Replied</button>' +
+          '<button class="act-btn danger" onclick=\'updateMsgStatus("' + m.id + '","closed")\'>Close</button>' +
+        '</td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table>';
+}
+
+async function updateMsgStatus(id, status) {
+  var { error } = await _sbAdmin.from('contact_submissions').update({ status }).eq('id', id);
+  if(error) { showToast('❌ ' + error.message); return; }
+  showToast('✅ Message marked as ' + status);
+  loadMessages();
 }
 
 // ── MODAL HELPERS ─────────────────────────────────────────────
