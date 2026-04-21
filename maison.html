@@ -3672,12 +3672,12 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
           </div>
           <div class="is_display_163" id="cfForm">
             <div class="is_display_164">
-              <div class="ff"><label class="fl">First Name</label><input class="fi" placeholder="Sarah"></div>
-              <div class="ff"><label class="fl">Last Name</label><input class="fi" placeholder="Wilson"></div>
+              <div class="ff"><label class="fl">First Name</label><input class="fi" id="cfFirstName" placeholder="Sarah"></div>
+              <div class="ff"><label class="fl">Last Name</label><input class="fi" id="cfLastName" placeholder="Wilson"></div>
             </div>
-            <div class="ff"><label class="fl">Email Address</label><input class="fi" type="email" placeholder="your@email.com"></div>
+            <div class="ff"><label class="fl">Email Address</label><input class="fi" id="cfEmail" type="email" placeholder="your@email.com"></div>
             <div class="ff"><label class="fl">Subject</label>
-              <select class="fi fi-select">
+              <select class="fi fi-select" id="cfSubject">
                 <option>Order Query</option>
                 <option>Product Question</option>
                 <option>Partnership Enquiry</option>
@@ -3685,7 +3685,17 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
                 <option>Other</option>
               </select>
             </div>
-            <div class="ff"><label class="fl">Message</label><textarea class="fi is_resize_116" rows="5" placeholder="Tell us how we can help…"></textarea></div>
+            <div class="ff"><label class="fl">Message</label><textarea class="fi is_resize_116" id="cfMessage" rows="5" placeholder="Tell us how we can help…"></textarea></div>
+            <!-- Social links -->
+            <div style="display:flex;gap:.75rem;align-items:center;margin:.5rem 0 1rem;flex-wrap:wrap;">
+              <span style="font-family:var(--mono);font-size:.58rem;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;">Find us on</span>
+              <a href="https://instagram.com/code_sphere" target="_blank" title="Instagram" style="color:var(--ink);transition:color .15s;" onmouseover="this.style.color='#E1306C'" onmouseout="this.style.color='var(--ink)'"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+              <a href="https://facebook.com/code_sphere" target="_blank" title="Facebook" style="color:var(--ink);transition:color .15s;" onmouseover="this.style.color='#1877F2'" onmouseout="this.style.color='var(--ink)'"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a>
+              <a href="https://tiktok.com/@code_sphere" target="_blank" title="TikTok" style="color:var(--ink);transition:color .15s;" onmouseover="this.style.color='#000'" onmouseout="this.style.color='var(--ink)'"><svg viewBox="0 0 24 24" width="20" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.79 1.54V6.78a4.85 4.85 0 01-1.02-.09z"/></svg></a>
+              <a href="https://youtube.com/@code_sphere" target="_blank" title="YouTube" style="color:var(--ink);transition:color .15s;" onmouseover="this.style.color='#FF0000'" onmouseout="this.style.color='var(--ink)'"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 00-1.95 1.96A29 29 0 001 12a29 29 0 00.46 5.58A2.78 2.78 0 003.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor" stroke="none"/></svg></a>
+              <a href="https://linkedin.com/in/code_sphere" target="_blank" title="LinkedIn" style="color:var(--ink);transition:color .15s;" onmouseover="this.style.color='#0A66C2'" onmouseout="this.style.color='var(--ink)'"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg></a>
+              <a href="https://x.com/code_sphere" target="_blank" title="X (Twitter)" style="color:var(--ink);transition:color .15s;" onmouseover="this.style.color='#000'" onmouseout="this.style.color='var(--ink)'"><svg viewBox="0 0 24 24" width="20" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/></svg></a>
+            </div>
             <button class="btn btn-dark" data-action="submitContactForm">Send Message →</button>
           </div>
         </div>
@@ -4143,7 +4153,7 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
         <p class="houses-hero-desc">Curated properties for sale across prime locations — from city penthouses to countryside estates. Every listing verified.</p>
         <div class="is_display_211">
           <button class="btn btn-gold" data-action="openAgent">Speak to an Agent →</button>
-          <button class="btn btn-outline is_color_98" data-toast="Booking a viewing...">Book a Viewing</button>
+          <button class="btn btn-outline is_color_98" onclick="document.querySelector('[data-openhouselist]') ? document.querySelector('[data-openhouselist]').click() : nav('houses')">Book a Viewing</button>
         </div>
       </div>
       <div class="houses-hero-stats">
@@ -4307,7 +4317,7 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
         </div>
         <div class="is_display_223">
           <button class="btn btn-gold" data-action="openAgent">Book a Consultation →</button>
-          <button class="btn btn-outline is_color_224" data-toast="Brochure downloading...">Download Brochure</button>
+          <button class="btn btn-outline is_color_224" onclick="showToast('📩 Email us at support@maison.com to request a brochure.')">Download Brochure</button>
         </div>
       </div>
     </div>
@@ -4321,8 +4331,8 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
         <h1 class="houses-hero-title">Your Perfect<br><em>Rental Home</em></h1>
         <p class="houses-hero-desc">Flexible short-term and long-term rentals across world-class cities. No hidden fees — all bills and services clearly stated.</p>
         <div class="is_display_211">
-          <button class="btn btn-green" data-toast="Browsing rentals...">Browse All Rentals →</button>
-          <button class="btn btn-outline is_color_98" data-toast="Opening short-stay options...">Short Stays</button>
+          <button class="btn btn-green" onclick="nav('houses')">Browse All Rentals →</button>
+          <button class="btn btn-outline is_color_98" onclick="nav('houses')">Short Stays</button>
         </div>
       </div>
       <div class="houses-hero-stats">
@@ -4515,7 +4525,7 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
         <p class="cars-hero-desc">Curated selection of new, used, and certified pre-owned vehicles — from sleek city cars to luxury performance SUVs. Every car inspected and verified.</p>
         <div class="is_display_211">
           <button class="btn btn-gold" data-action="openAgent">Speak to an Advisor →</button>
-          <button class="btn btn-outline is_color_98" data-toast="Booking a test drive...">Book Test Drive</button>
+          <button class="btn btn-outline is_color_98" onclick="nav('cars')">Book Test Drive</button>
         </div>
       </div>
       <div class="cars-hero-stats">
@@ -4722,7 +4732,7 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
         <div class="is_display_211">
           <button class="btn is_background_204" data-carsview="cars-rent">Browse All Rentals →</button>
           <button class="btn btn-gold" data-action="openAgent">Speak to an Agent →</button>
-          <button class="btn btn-outline is_color_98" data-toast="Supercar experiences loading...">Supercar Experiences</button>
+          <button class="btn btn-outline is_color_98" onclick="document.getElementById('carCatFilter') ? (document.getElementById('carCatFilter').value='supercar', applyCarFilters()) : nav('cars')">Supercar Experiences</button>
         </div>
       </div>
       <div class="cars-hero-stats">
@@ -4900,7 +4910,7 @@ textarea.fi{resize:vertical;min-height:130px;line-height:1.6;}
     <div class="footer-top">
       <div><div class="footer-brand">Mai<span>s</span>on</div><p class="footer-tagline">Premium cars for sale and hire — curated, verified and ready to drive.</p></div>
       <div><div class="footer-col-title">Buy</div><ul class="footer-links"><li><a data-carsview="cars-sale" data-nav="cars">For Sale</a></li><li><a data-toast="Luxury cars">Luxury</a></li><li><a data-toast="Electric vehicles">Electric</a></li></ul></div>
-      <div><div class="footer-col-title">Rent</div><ul class="footer-links"><li><a data-carsview="cars-rent" data-nav="cars">For Hire</a></li><li><a data-toast="Supercar experience">Supercar Days</a></li><li><a data-toast="Corporate hire">Corporate</a></li></ul></div>
+      <div><div class="footer-col-title">Rent</div><ul class="footer-links"><li><a data-carsview="cars-rent" data-nav="cars">For Hire</a></li><li><a onclick="nav('cars')" style="cursor:pointer;">Supercar Days</a></li><li><a onclick="nav('cars')" style="cursor:pointer;">Corporate</a></li></ul></div>
       <div><div class="footer-col-title">Services</div><ul class="footer-links"><li><a data-toast="Finance">Finance & PCP</a></li><li><a data-toast="Part exchange">Part Exchange</a></li><li><a data-nav="about">Contact Us</a></li></ul></div>
     </div>
     <div class="footer-bottom"><div class="footer-copy">© 2026 Maison Motors. All rights reserved.</div><div class="is_display_120"><a class="is_font_family_121" data-nav="privacy">Privacy</a><a class="is_font_family_121" data-nav="cookies">Cookies</a><a class="is_font_family_121" data-nav="terms">Terms</a><a class="is_font_family_121" data-nav="refund">Refund</a></div><div class="footer-pay"><span class="pay-chip">FCA</span><span class="pay-chip">RAC</span><span class="pay-chip">AA</span></div></div>
@@ -5352,18 +5362,18 @@ function buildSearchIndex() {
   // Fashion
   var fSrc = (typeof fashionDB !== 'undefined' ? fashionDB : []).concat(typeof fashionProds !== 'undefined' ? fashionProds : []);
   fSrc.forEach(function(p) {
-    idx.push({ label:p.name, sub:p.cat||'Fashion', price:p.price||'', page:'fashion', action:'product', data:p, emoji:p.emoji||'', type:'fashion' });
+    idx.push({ label:p.name, sub:p.cat||'Fashion', price:p.price||'', page:'fashion', action:'product', data:p, emoji:p.emoji||'', type:'fashion', img:p.img||'' });
   });
 
   // Electronics
   (typeof elecProds !== 'undefined' ? elecProds : []).forEach(function(p) {
-    idx.push({ label:p.name, sub:p.cat||'Electronics', price:p.price||'', page:'electronics', action:'product', data:p, emoji:'💻', type:'electronics' });
+    idx.push({ label:p.name, sub:p.cat||'Electronics', price:p.price||'', page:'electronics', action:'product', data:p, emoji:'💻', type:'electronics', img:p.img||'' });
   });
 
   // Farm
   var fmSrc = (typeof farmDB !== 'undefined' ? farmDB : []).concat(typeof farmProds !== 'undefined' ? farmProds : []);
   fmSrc.forEach(function(p) {
-    idx.push({ label:p.name, sub:(p.origin||'Farm')+'  ·  '+p.unit, price:p.price||'', page:'farm', action:'farmProduct', data:p, emoji:p.emoji||'🌿', type:'farm' });
+    idx.push({ label:p.name, sub:(p.origin||'Farm')+'  ·  '+p.unit, price:p.price||'', page:'farm', action:'farmProduct', data:p, emoji:p.emoji||'🌿', type:'farm', img:p.img||'' });
   });
 
   // Brands (Aesop)
@@ -5497,7 +5507,11 @@ function handleSearch(val){
       var it = r.item;
       var priceHtml = it.price ? '<span style="font-family:var(--mono);font-size:.58rem;color:var(--accent);margin-left:auto;flex-shrink:0;">'+it.price+'</span>' : '';
       var typeColour = {fashion:'#c8803a',electronics:'#4aa3ff',farm:'#6abf74',brand:'#b0856e',car:'#a0a0c0',house:'#c8aa6e',page:'var(--muted)'}[it.type]||'var(--muted)';
+      // For product items, open directly in PDP
       var navAttr = 'data-nav="'+it.page+'" data-closesearch="1"';
+      if(it.type === 'fashion' || it.type === 'electronics' || it.type === 'farm') {
+        navAttr += ' data-searchopen="'+it.label.replace(/"/g,'&quot;')+'" data-searchprice="'+(it.price||'')+'" data-searchcat="'+(it.sub||'')+'" data-searchemoji="'+(it.emoji||'')+'" data-searchimg="'+(it.img||'')+'"';
+      }
       // For specific products, also pass doSearch to set the filter
       return '<div class="search-result-card" '+navAttr+' style="display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;border:1px solid var(--border);background:var(--paper);cursor:pointer;transition:background .15s;border-radius:2px;">'
         +'<span style="font-size:1.1rem;flex-shrink:0;">'+it.emoji+'</span>'
@@ -9846,6 +9860,16 @@ document.addEventListener('click', function(e) {
   if(navEl) {
     var page = navEl.getAttribute('data-nav');
     if(navEl.hasAttribute('data-closesearch')) closeSearch();
+    // If it's a product search result, open PDP directly
+    if(navEl.hasAttribute('data-searchopen')) {
+      var sName  = navEl.getAttribute('data-searchopen');
+      var sPrice = navEl.getAttribute('data-searchprice') || '';
+      var sCat   = navEl.getAttribute('data-searchcat')   || '';
+      var sEmoji = navEl.getAttribute('data-searchemoji') || '';
+      var sImg   = navEl.getAttribute('data-searchimg')   || '';
+      setTimeout(function(){ openProduct(sName, sPrice, sCat, sEmoji, sImg); }, 200);
+      return;
+    }
     if(navEl.hasAttribute('data-closebk')) closeBkDrawer();
     if(navEl.hasAttribute('data-closemob')) closeMobNav();
     if(navEl.hasAttribute('data-housesview')) showHousesView(navEl.getAttribute('data-housesview'), null);
@@ -9912,7 +9936,9 @@ document.addEventListener('click', function(e) {
       case 'closeListingOpenAgent': closeModal('houseListModal'); openAgent(); break;
       case 'submitContactForm':
         (async function(){
-          var cfName  = (document.getElementById('cfName')  || {}).value || '';
+          var cfFirst = (document.getElementById('cfFirstName') || {}).value || '';
+          var cfLast  = (document.getElementById('cfLastName')  || {}).value || '';
+          var cfName  = (cfFirst + ' ' + cfLast).trim() || 'Anonymous';
           var cfEmail = (document.getElementById('cfEmail') || {}).value || '';
           var cfSubj  = (document.getElementById('cfSubject')|| {}).value || '';
           var cfMsg   = (document.getElementById('cfMessage')|| {}).value || '';
